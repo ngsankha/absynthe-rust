@@ -1,4 +1,6 @@
-use absynthe::*;
+use absynthe::r#abstract::*;
+use absynthe::concrete::*;
+use absynthe::interpreter::*;
 use std::collections::HashMap;
 
 #[test]
@@ -55,7 +57,7 @@ fn abs_interp_append_err() {
         Func::Append(Expr::Const(AbsValue::Conc(StrVal::Int(6))),
                      Expr::Const(AbsValue::Abs(StrLenLat::Len(5))))));
 
-    assert_eq!(AbsValue::Abs(StrLenLat::Len(11)), StrLenInterp::eval(&prog, &env));
+    assert_eq!(AbsValue::Conc(StrVal::Error), StrLenInterp::eval(&prog, &env));
 }
 
 // #[test]
@@ -119,32 +121,62 @@ fn abs_interp_append_err() {
 //     assert_eq!(Value::Int(7), interp(&prog, &env));
 // }
 
-// #[test]
-// fn sygus_bikes() {
-//     let prog = Expr::Call(Box::new(
-//         Func::Substr(Expr::Var("arg0".to_string()),
-//                      Expr::Const(Value::Int(0)),
-//                      Expr::Call(Box::new(
-//                         Func::Sub(Expr::Call(Box::new(
-//                             Func::Len(Expr::Var("arg0".to_string())))),
-//                         Expr::Const(Value::Int(3))))))));
+#[test]
+fn sygus_bikes() {
+    let prog = Expr::Call(Box::new(
+        Func::Substr(Expr::Var("arg0".to_string()),
+                     Expr::Const(StrVal::Int(0)),
+                     Expr::Call(Box::new(
+                        Func::Sub(Expr::Call(Box::new(
+                            Func::Len(Expr::Var("arg0".to_string())))),
+                        Expr::Const(StrVal::Int(3))))))));
 
-//     let mut env = HashMap::new();
-//     env.insert("arg0".to_string(), Value::Str("Ducati100".to_string()));
-//     assert_eq!(Value::Str("Ducati".to_string()), interp(&prog, &env));
+    let mut env = HashMap::new();
+    env.insert("arg0".to_string(), StrVal::Str("Ducati100".to_string()));
+    assert_eq!(StrVal::Str("Ducati".to_string()), StrOpInterpreter::eval(&prog, &env));
 
-//     env.insert("arg0".to_string(), Value::Str("Honda125".to_string()));
-//     assert_eq!(Value::Str("Honda".to_string()), interp(&prog, &env));
+    env.insert("arg0".to_string(), StrVal::Str("Honda125".to_string()));
+    assert_eq!(StrVal::Str("Honda".to_string()), StrOpInterpreter::eval(&prog, &env));
 
-//     env.insert("arg0".to_string(), Value::Str("Ducati250".to_string()));
-//     assert_eq!(Value::Str("Ducati".to_string()), interp(&prog, &env));
+    env.insert("arg0".to_string(), StrVal::Str("Ducati250".to_string()));
+    assert_eq!(StrVal::Str("Ducati".to_string()), StrOpInterpreter::eval(&prog, &env));
 
-//     env.insert("arg0".to_string(), Value::Str("Honda250".to_string()));
-//     assert_eq!(Value::Str("Honda".to_string()), interp(&prog, &env));
+    env.insert("arg0".to_string(), StrVal::Str("Honda250".to_string()));
+    assert_eq!(StrVal::Str("Honda".to_string()), StrOpInterpreter::eval(&prog, &env));
 
-//     env.insert("arg0".to_string(), Value::Str("Honda550".to_string()));
-//     assert_eq!(Value::Str("Honda".to_string()), interp(&prog, &env));
+    env.insert("arg0".to_string(), StrVal::Str("Honda550".to_string()));
+    assert_eq!(StrVal::Str("Honda".to_string()), StrOpInterpreter::eval(&prog, &env));
 
-//     env.insert("arg0".to_string(), Value::Str("Ducati125".to_string()));
-//     assert_eq!(Value::Str("Ducati".to_string()), interp(&prog, &env));
-// }
+    env.insert("arg0".to_string(), StrVal::Str("Ducati125".to_string()));
+    assert_eq!(StrVal::Str("Ducati".to_string()), StrOpInterpreter::eval(&prog, &env));
+}
+
+#[test]
+fn abs_sygus_bikes() {
+    let prog = Expr::Call(Box::new(
+        Func::Substr(Expr::Var("arg0".to_string()),
+                     Expr::Const(AbsValue::Conc(StrVal::Int(0))),
+                     Expr::Call(Box::new(
+                        Func::Sub(Expr::Call(Box::new(
+                            Func::Len(Expr::Var("arg0".to_string())))),
+                        Expr::Const(AbsValue::Conc(StrVal::Int(3)))))))));
+
+    let mut env = HashMap::new();
+    env.insert("arg0".to_string(), AbsValue::Abs(StrLenLat::Len(9)));
+    assert_eq!(AbsValue::Abs(StrLenLat::Len(6)), StrLenInterp::eval(&prog, &env));
+
+    env.insert("arg0".to_string(), AbsValue::Abs(StrLenLat::Len(8)));
+    assert_eq!(AbsValue::Abs(StrLenLat::Len(5)), StrLenInterp::eval(&prog, &env));
+
+    env.insert("arg0".to_string(), AbsValue::Abs(StrLenLat::Len(9)));
+    assert_eq!(AbsValue::Abs(StrLenLat::Len(6)), StrLenInterp::eval(&prog, &env));
+
+    env.insert("arg0".to_string(), AbsValue::Abs(StrLenLat::Len(8)));
+    assert_eq!(AbsValue::Abs(StrLenLat::Len(5)), StrLenInterp::eval(&prog, &env));
+
+    env.insert("arg0".to_string(), AbsValue::Abs(StrLenLat::Len(8)));
+    assert_eq!(AbsValue::Abs(StrLenLat::Len(5)), StrLenInterp::eval(&prog, &env));
+
+    env.insert("arg0".to_string(), AbsValue::Abs(StrLenLat::Len(9)));
+    assert_eq!(AbsValue::Abs(StrLenLat::Len(6)), StrLenInterp::eval(&prog, &env));
+}
