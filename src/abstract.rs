@@ -1,13 +1,42 @@
+use std::ops::Sub;
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use crate::concrete::*;
 use crate::interpreter::*;
+use crate::linear::*;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum StrLenLat {
     Top,
-    Len(usize),
+    Len(LinearExpr),
     Bot
+}
+
+impl From<LinearExpr> for StrLenLat {
+    fn from(item: LinearExpr) -> Self {
+        StrLenLat::Len(item)
+    }
+}
+
+impl From<i32> for StrLenLat {
+    fn from(item: i32) -> Self {
+        StrLenLat::from(LinearExpr::from(item))
+    }
+}
+
+impl Sub for StrLenLat {
+    type Output = Self;
+
+    fn sub(self, other: Self) -> Self {
+        match (self, other) {
+            (StrLenLat::Top, _) => StrLenLat::Top,
+            (StrLenLat::Len(_), StrLenLat::Top) => StrLenLat::Top,
+            (StrLenLat::Len(l1), StrLenLat::Len(l2)) => StrLenLat::Len(l1 - l2),
+            (StrLenLat::Len(_), StrLenLat::Bot) => StrLenLat::Bot,
+            (StrLenLat::Bot, _) => StrLenLat::Bot
+        }
+    }
 }
 
 impl PartialOrd for StrLenLat {
@@ -17,9 +46,13 @@ impl PartialOrd for StrLenLat {
                 StrLenLat::Top => Some(Ordering::Equal),
                 _ => Some(Ordering::Greater)
             },
-            StrLenLat::Len(x) => match other {
+            StrLenLat::Len(l1) => match other {
                 StrLenLat::Top => Some(Ordering::Less),
-                StrLenLat::Len(y) => x.partial_cmp(y),
+                StrLenLat::Len(l2) => if l1 == l2 {
+                    Some(Ordering::Equal)
+                } else {
+                    None
+                },
                 StrLenLat::Bot => Some(Ordering::Greater)
             },
             StrLenLat::Bot => match other {
@@ -31,22 +64,6 @@ impl PartialOrd for StrLenLat {
 }
 
 impl Lattice for StrLenLat {
-    fn join(&self, other: &Self) -> Self {
-        match self {
-            StrLenLat::Top => self.clone(),
-            StrLenLat::Len(v1) => match other {
-                StrLenLat::Top => other.clone(),
-                StrLenLat::Len(v2) => if v1 > v2 {
-                    StrLenLat::Len(*v1)
-                } else {
-                    StrLenLat::Len(*v2)
-                },
-                StrLenLat::Bot => self.clone()
-            },
-            StrLenLat::Bot => other.clone()
-        }
-    }
-
     fn top() -> Self {
         Self::Top
     }
@@ -59,13 +76,13 @@ impl Lattice for StrLenLat {
 impl Abstractable<StrLenLat> for StrVal {
     fn abstraction(&self) -> Option<StrLenLat> {
         match self {
-            StrVal::Str(s) => Some(StrLenLat::Len(s.chars().count())),
+            StrVal::Str(s) => Some(StrLenLat::Len(LinearExpr::from(s.chars().count() as i32))),
             _ => None
         }
     }
 }
 
-type AbsStrVal = AbsValue<StrLenLat, StrVal>;
+pub type AbsStrVal = AbsValue<StrLenLat, StrVal>;
 
 impl Value for AbsStrVal {
     fn error() -> Self {
@@ -154,7 +171,7 @@ impl StrLenInterp {
                 (StrVal::Str(s1), StrVal::Int(start), StrVal::Int(end)) => AbsStrVal::Conc(StrVal::Str(s1.chars().skip(start as usize).take((end - start) as usize).collect())),
                 _ => AbsStrVal::error()
             },
-            (AbsStrVal::Abs(StrLenLat::Len(_s)), AbsStrVal::Conc(StrVal::Int(start)), AbsStrVal::Conc(StrVal::Int(end))) => AbsStrVal::Abs(StrLenLat::Len((end - start) as usize)),
+            (AbsStrVal::Abs(StrLenLat::Len(_s)), AbsStrVal::Conc(StrVal::Int(start)), AbsStrVal::Conc(StrVal::Int(end))) => AbsStrVal::Abs(StrLenLat::Len(LinearExpr::from(end - start))),
             _ => AbsStrVal::error()
         }
     }
@@ -182,10 +199,10 @@ impl StrLenInterp {
     fn abs_str_len(v: AbsStrVal) -> AbsStrVal {
         match v {
             AbsStrVal::Conc(c) => match c {
-                StrVal::Str(s) => AbsStrVal::Conc(StrVal::Int(s.chars().count() as i64)),
+                StrVal::Str(s) => AbsStrVal::Conc(StrVal::Int(s.chars().count() as i32)),
                 _ => AbsStrVal::error()
             },
-            AbsStrVal::Abs(StrLenLat::Len(l)) => AbsStrVal::Conc(StrVal::Int(l as i64)),
+            AbsStrVal::Abs(StrLenLat::Len(l)) => AbsStrVal::Conc(StrVal::Int(i32::try_from(l).unwrap())),
             _ => AbsStrVal::error()
         }
     }

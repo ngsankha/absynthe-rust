@@ -1,13 +1,14 @@
 use std::collections::HashMap;
 use crate::interpreter::*;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StrVal {
     Str(String),
-    Int(i64),
+    Int(i32),
     Error
 }
 
+#[derive(Debug)]
 pub enum Func<T> {
     Append(Expr<T>, Expr<T>),
     Replace(Expr<T>, Expr<T>, Expr<T>),
@@ -17,6 +18,7 @@ pub enum Func<T> {
     Len(Expr<T>)
 }
 
+#[derive(Debug)]
 pub enum Expr<T> {
     Const(T),
     Var(String),
@@ -26,6 +28,12 @@ pub enum Expr<T> {
 impl Value for StrVal {
     fn error() -> Self {
         StrVal::Error
+    }
+}
+
+impl From<String> for StrVal {
+    fn from(item: String) -> Self {
+        StrVal::Str(item)
     }
 }
 
@@ -82,7 +90,7 @@ impl StrOpInterpreter {
 
     fn str_len(v: StrVal) -> StrVal {
         match v {
-            StrVal::Str(s) => StrVal::Int(s.chars().count() as i64),
+            StrVal::Str(s) => StrVal::Int(s.chars().count() as i32),
             _ => StrVal::error()
         }
     }

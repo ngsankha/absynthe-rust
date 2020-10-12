@@ -1,6 +1,7 @@
 pub mod r#abstract;
 pub mod concrete;
 pub mod interpreter;
+pub mod linear;
 
 // pub fn interp<T: Value, Clone>(expr: &Expr<T>, env: &HashMap<String, T>) -> T {
 //     match expr {
