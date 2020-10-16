@@ -42,4 +42,3 @@ pub mod linear;
 //         (StringLenLattice::Bot, StringLenLattice::Bot) => StringLenLattice::Bot
 //     }
 // }
-
