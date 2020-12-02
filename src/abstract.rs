@@ -25,6 +25,12 @@ impl From<i32> for StrLenLat {
     }
 }
 
+impl From<String> for StrLenLat {
+    fn from(item: String) -> Self {
+        StrLenLat::from(LinearExpr::from(item))
+    }
+}
+
 impl Sub for StrLenLat {
     type Output = Self;
 
@@ -107,7 +113,13 @@ impl Lattice for AbsStrVal {
 
 impl From<i32> for AbsStrVal {
     fn from(item: i32) -> Self {
-        AbsValue::Abs(StrLenLat::from(LinearExpr::from(item)))
+        AbsValue::Abs(StrLenLat::from(item))
+    }
+}
+
+impl From<String> for AbsStrVal {
+    fn from(item: String) -> Self {
+        AbsValue::Abs(StrLenLat::from(item))
     }
 }
 

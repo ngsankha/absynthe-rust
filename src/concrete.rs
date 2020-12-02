@@ -54,6 +54,7 @@ impl<T: Value, U: Lattice> Expr<T, U> {
 
     pub fn size(&self) -> u32 {
         match self {
+            Self::Call(f) => f.size(),
             Self::Hole(_, Some(f)) => f.size(),
             Self::ConcHole(s) => *s,
             _ => 0,
@@ -83,6 +84,12 @@ impl Value for StrVal {
 impl From<String> for StrVal {
     fn from(item: String) -> Self {
         StrVal::Str(item)
+    }
+}
+
+impl From<i32> for StrVal {
+    fn from(item: i32) -> Self {
+        StrVal::Int(item)
     }
 }
 
