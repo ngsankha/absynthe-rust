@@ -1,18 +1,18 @@
 use std::collections::HashMap;
-use std::ops::{Add, Sub, Mul};
 use std::convert::TryFrom;
+use std::ops::{Add, Mul, Sub};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinearExpr {
     c: i32,
-    terms: HashMap<String, i32>
+    terms: HashMap<String, i32>,
 }
 
 impl From<i32> for LinearExpr {
     fn from(item: i32) -> Self {
         LinearExpr {
             c: item,
-            terms: HashMap::new()
+            terms: HashMap::new(),
         }
     }
 }
@@ -22,10 +22,7 @@ impl From<String> for LinearExpr {
         let mut h = HashMap::new();
         h.insert(item, 1);
 
-        LinearExpr {
-            c: 0,
-            terms: h
-        }
+        LinearExpr { c: 0, terms: h }
     }
 }
 
@@ -38,13 +35,12 @@ impl Add for LinearExpr {
         for (id, coeff) in other.terms {
             match terms.get(&id) {
                 None => terms.insert(id, coeff),
-                Some(c) => terms.insert(id, c + coeff)
+                Some(c) => terms.insert(id, c + coeff),
             };
         }
-        
         LinearExpr {
             c: new_c,
-            terms: terms
+            terms: terms,
         }
     }
 }
@@ -56,11 +52,8 @@ impl LinearExpr {
         for (id, coeff) in lhs.terms {
             terms.insert(id, coeff * rhs.c);
         }
-        
-        LinearExpr {
-            c: c,
-            terms: terms
-        }
+
+        LinearExpr { c: c, terms: terms }
     }
 
     pub fn is_const(&self) -> bool {

@@ -1,5 +1,6 @@
 use crate::concrete::*;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 pub trait Lattice: PartialOrd + PartialEq {
     // fn meet(&self, other: &Self) -> Self;
@@ -43,9 +44,9 @@ pub trait Abstractable<T> {
     fn abstraction(&self) -> Option<T>;
 }
 
-pub trait Interpreter<T: Value, U: Lattice> {
+pub trait Interpreter<T: Value + Debug, U: Lattice> {
     fn eval(expr: &Expr<T, U>, env: &HashMap<String, T>) -> Result<T, &'static str> {
-        match expr {
+        let t = match expr {
             Expr::Const(v) => Ok(v.clone()),
             Expr::Var(x) => match env.get(x) {
                 Some(val) => Ok(val.clone()),
@@ -53,7 +54,9 @@ pub trait Interpreter<T: Value, U: Lattice> {
             },
             Expr::Call(call) => Ok(Self::eval_call(call, env)),
             _ => Err("holes cannot be processed"),
-        }
+        };
+        println!("{:?}", t.clone().unwrap());
+        t
     }
 
     fn eval_call(expr: &Func<T, U>, env: &HashMap<String, T>) -> T;

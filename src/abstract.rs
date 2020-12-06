@@ -111,18 +111,6 @@ impl Lattice for AbsStrVal {
     }
 }
 
-impl From<i32> for AbsStrVal {
-    fn from(item: i32) -> Self {
-        AbsValue::Abs(StrLenLat::from(item))
-    }
-}
-
-impl From<String> for AbsStrVal {
-    fn from(item: String) -> Self {
-        AbsValue::Abs(StrLenLat::from(item))
-    }
-}
-
 impl From<StrVal> for AbsStrVal {
     fn from(item: StrVal) -> Self {
         AbsValue::Conc(item)
@@ -153,6 +141,24 @@ impl AbsStrVal {
 pub struct StrLenInterp;
 
 impl Interpreter<AbsStrVal, StrLenLat> for StrLenInterp {
+    fn eval(
+        expr: &Expr<AbsStrVal, StrLenLat>,
+        env: &HashMap<String, AbsStrVal>,
+    ) -> Result<AbsStrVal, &'static str> {
+        let t = match expr {
+            Expr::Const(v) => Ok(v.clone()),
+            Expr::Var(x) => match env.get(x) {
+                Some(val) => Ok(val.clone()),
+                None => Ok(AbsStrVal::error()),
+            },
+            Expr::Call(call) => Ok(Self::eval_call(call, env)),
+            Expr::Hole(v, _) => Ok(AbsStrVal::Abs(v.clone())),
+            _ => unreachable!(),
+        };
+        println!("{:?}", t.clone().unwrap());
+        t
+    }
+
     fn eval_call(expr: &Func<AbsStrVal, StrLenLat>, env: &HashMap<String, AbsStrVal>) -> AbsStrVal {
         match expr {
             Func::Append(s1, s2) => {
@@ -236,20 +242,22 @@ impl StrLenInterp {
         match (v1, v2, v3) {
             (AbsStrVal::Conc(c1), AbsStrVal::Conc(c2), AbsStrVal::Conc(c3)) => match (c1, c2, c3) {
                 (StrVal::Str(s1), StrVal::Int(start), StrVal::Int(end)) => {
-                    AbsStrVal::Conc(StrVal::Str(
-                        s1.chars()
-                            .skip(start as usize)
-                            .take((end - start) as usize)
-                            .collect(),
-                    ))
+                    if start.is_const() && end.is_const() {
+                        AbsStrVal::Conc(StrVal::Str(
+                            s1.chars()
+                                .skip(i32::try_from(start.clone()).unwrap() as usize)
+                                .take(i32::try_from(end - start).unwrap() as usize)
+                                .collect(),
+                        ))
+                    } else {
+                        AbsStrVal::error()
+                    }
                 }
                 _ => AbsStrVal::error(),
             },
-            (
-                AbsStrVal::Abs(StrLenLat::Len(_s)),
-                AbsStrVal::Conc(StrVal::Int(start)),
-                AbsStrVal::Conc(StrVal::Int(end)),
-            ) => AbsStrVal::Abs(StrLenLat::Len(LinearExpr::from(end - start))),
+            (_, AbsStrVal::Conc(StrVal::Int(start)), AbsStrVal::Conc(StrVal::Int(end))) => {
+                AbsStrVal::Abs(StrLenLat::Len(LinearExpr::from(end - start)))
+            }
             _ => AbsStrVal::error(),
         }
     }
@@ -277,12 +285,12 @@ impl StrLenInterp {
     fn abs_str_len(v: AbsStrVal) -> AbsStrVal {
         match v {
             AbsStrVal::Conc(c) => match c {
-                StrVal::Str(s) => AbsStrVal::Conc(StrVal::Int(s.chars().count() as i32)),
+                StrVal::Str(s) => {
+                    AbsStrVal::Conc(StrVal::Int(LinearExpr::from(s.chars().count() as i32)))
+                }
                 _ => AbsStrVal::error(),
             },
-            AbsStrVal::Abs(StrLenLat::Len(l)) => {
-                AbsStrVal::Conc(StrVal::Int(i32::try_from(l).unwrap()))
-            }
+            AbsStrVal::Abs(StrLenLat::Len(l)) => AbsStrVal::Conc(StrVal::Int(l)),
             _ => AbsStrVal::error(),
         }
     }

@@ -1,11 +1,13 @@
 use crate::interpreter::*;
+use crate::linear::*;
 use crate::r#abstract::*;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StrVal {
     Str(String),
-    Int(i32),
+    Int(LinearExpr),
     Error,
 }
 
@@ -89,7 +91,7 @@ impl From<String> for StrVal {
 
 impl From<i32> for StrVal {
     fn from(item: i32) -> Self {
-        StrVal::Int(item)
+        StrVal::Int(LinearExpr::from(item))
     }
 }
 
@@ -141,12 +143,18 @@ impl StrOpInterpreter {
 
     fn str_substr(v1: StrVal, v2: StrVal, v3: StrVal) -> StrVal {
         match (v1, v2, v3) {
-            (StrVal::Str(s1), StrVal::Int(start), StrVal::Int(end)) => StrVal::Str(
-                s1.chars()
-                    .skip(start as usize)
-                    .take((end - start) as usize)
-                    .collect(),
-            ),
+            (StrVal::Str(s1), StrVal::Int(start), StrVal::Int(end)) => {
+                if start.is_const() && end.is_const() {
+                    StrVal::Str(
+                        s1.chars()
+                            .skip(i32::try_from(start.clone()).unwrap() as usize)
+                            .take(i32::try_from(end - start).unwrap() as usize)
+                            .collect(),
+                    )
+                } else {
+                    StrVal::error()
+                }
+            }
             _ => StrVal::error(),
         }
     }
@@ -167,7 +175,7 @@ impl StrOpInterpreter {
 
     fn str_len(v: StrVal) -> StrVal {
         match v {
-            StrVal::Str(s) => StrVal::Int(s.chars().count() as i32),
+            StrVal::Str(s) => StrVal::Int(LinearExpr::from(s.chars().count() as i32)),
             _ => StrVal::error(),
         }
     }
