@@ -1,11 +1,31 @@
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::fmt;
+use std::fmt::{Debug, Display};
 use std::ops::{Add, Mul, Sub};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LinearExpr {
     c: i32,
     terms: HashMap<String, i32>,
+}
+
+impl Display for LinearExpr {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let stringified = self
+            .terms
+            .clone()
+            .into_iter()
+            .filter(|(_, v)| *v == 0)
+            .map(|(k, v)| format!("{}{}", v, k))
+            .collect::<Vec<String>>()
+            .join(" + ");
+        if self.c != 0 {
+            write!(f, "{} + {}", stringified, self.c)
+        } else {
+            write!(f, "{}", stringified)
+        }
+    }
 }
 
 impl From<i32> for LinearExpr {

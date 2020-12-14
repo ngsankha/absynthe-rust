@@ -1,6 +1,7 @@
 use crate::concrete::*;
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt;
+use std::fmt::{Debug, Display};
 
 pub trait Lattice: PartialOrd + PartialEq {
     // fn meet(&self, other: &Self) -> Self;
@@ -13,6 +14,15 @@ pub trait Lattice: PartialOrd + PartialEq {
 pub enum AbsValue<T: Lattice, U> {
     Abs(T),
     Conc(U),
+}
+
+impl<T: Lattice + Display, U: Display> Display for AbsValue<T, U> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AbsValue::Abs(v) => write!(f, "{}", v),
+            AbsValue::Conc(v) => write!(f, "{}", v),
+        }
+    }
 }
 
 impl<T: Lattice, U> AbsValue<T, U> {

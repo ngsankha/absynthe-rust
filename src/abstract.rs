@@ -4,6 +4,8 @@ use crate::linear::*;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::fmt;
+use std::fmt::{Debug, Display};
 use std::ops::Sub;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -11,6 +13,16 @@ pub enum StrLenLat {
     Top,
     Len(LinearExpr),
     Bot,
+}
+
+impl Display for StrLenLat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StrLenLat::Top => write!(f, "⊤"),
+            StrLenLat::Len(e) => write!(f, "{}", e),
+            StrLenLat::Bot => write!(f, "⊥"),
+        }
+    }
 }
 
 impl From<LinearExpr> for StrLenLat {
@@ -145,7 +157,7 @@ impl Interpreter<AbsStrVal, StrLenLat> for StrLenInterp {
         expr: &Expr<AbsStrVal, StrLenLat>,
         env: &HashMap<String, AbsStrVal>,
     ) -> Result<AbsStrVal, &'static str> {
-        let t = match expr {
+        match expr {
             Expr::Const(v) => Ok(v.clone()),
             Expr::Var(x) => match env.get(x) {
                 Some(val) => Ok(val.clone()),
@@ -154,9 +166,7 @@ impl Interpreter<AbsStrVal, StrLenLat> for StrLenInterp {
             Expr::Call(call) => Ok(Self::eval_call(call, env)),
             Expr::Hole(v, _) => Ok(AbsStrVal::Abs(v.clone())),
             _ => unreachable!(),
-        };
-        println!("{:?}", t.clone().unwrap());
-        t
+        }
     }
 
     fn eval_call(expr: &Func<AbsStrVal, StrLenLat>, env: &HashMap<String, AbsStrVal>) -> AbsStrVal {

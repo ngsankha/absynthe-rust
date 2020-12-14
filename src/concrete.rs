@@ -3,6 +3,8 @@ use crate::linear::*;
 use crate::r#abstract::*;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::fmt;
+use std::fmt::Display;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StrVal {
@@ -29,6 +31,40 @@ pub enum Expr<T: Value, U: Lattice> {
     Hole(U, Option<Box<Func<T, U>>>),
     ConcHole(u32),
     DepHole,
+}
+
+impl Display for StrVal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            StrVal::Str(s) => write!(f, "\"{}\"", s),
+            StrVal::Int(i) => write!(f, "{}", i),
+            StrVal::Error => write!(f, "'err"),
+        }
+    }
+}
+
+impl<T: Value + Display, U: Lattice> Display for Expr<T, U> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Expr::Const(c) => write!(f, "{}", c),
+            Expr::Var(var) => write!(f, "{}", var),
+            Expr::Call(func) => write!(f, "{}", func),
+            _ => unreachable!(),
+        }
+    }
+}
+
+impl<T: Value + Display, U: Lattice> Display for Func<T, U> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Func::Append(arg1, arg2) => write!(f, "(append {} {})", arg1, arg2),
+            Func::Replace(arg1, arg2, arg3) => write!(f, "(replace {} {} {})", arg1, arg2, arg3),
+            Func::Substr(arg1, arg2, arg3) => write!(f, "(append {} {} {})", arg1, arg2, arg3),
+            Func::Add(arg1, arg2) => write!(f, "(+ {} {})", arg1, arg2),
+            Func::Sub(arg1, arg2) => write!(f, "(- {} {})", arg1, arg2),
+            Func::Len(arg1) => write!(f, "(len {})", arg1),
+        }
+    }
 }
 
 impl<T: Value, U: Lattice> Expr<T, U> {

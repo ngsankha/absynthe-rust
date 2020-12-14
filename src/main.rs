@@ -162,22 +162,54 @@ fn concretize(ctx: &mut Context, size: u32) -> Vec<Expr<AbsStrVal, StrLenLat>> {
                 .collect();
 
             // replace(arg1, arg2, arg3)
-            // let replaces: Vec<Expr<AbsStrVal, StrLenLat>> = (0..size)
-            //     .combinations(3)
-            //     .map(|args| {
-            //         let arg1_vec = concretize(ctx, args[0]);
-            //         let arg2_vec = concretize(ctx, args[1]);
-            //         let arg3_vec = concretize(ctx, args[2]);
-            //         arg1_vec
-            //             .into_iter()
-            //             .cartesian_product(arg2_vec.into_iter())
-            //             .cartesian_product(arg3_vec.into_iter())
-            //             .map(|((arg1, arg2), arg3)| {
-            //                 Expr::Call(Box::new(Func::Replace(arg1, arg2, arg3)))
-            //             })
-            //     })
-            //     .flatten()
-            //     .collect();
+            let replaces: Vec<Expr<AbsStrVal, StrLenLat>> = (0..size)
+                .combinations(3)
+                .map(|args| {
+                    let arg1_vec = concretize(ctx, args[0]);
+                    let arg2_vec = concretize(ctx, args[1]);
+                    let arg3_vec = concretize(ctx, args[2]);
+                    arg1_vec
+                        .into_iter()
+                        .cartesian_product(arg2_vec.into_iter())
+                        .cartesian_product(arg3_vec.into_iter())
+                        .map(|((arg1, arg2), arg3)| {
+                            Expr::Call(Box::new(Func::Replace(arg1, arg2, arg3)))
+                        })
+                })
+                .flatten()
+                .collect();
+
+            // substr(arg1, arg2, arg3)
+            let substrs: Vec<Expr<AbsStrVal, StrLenLat>> = (0..size)
+                .combinations(3)
+                .map(|args| {
+                    let arg1_vec = concretize(ctx, args[0]);
+                    let arg2_vec = concretize(ctx, args[1]);
+                    let arg3_vec = concretize(ctx, args[2]);
+                    arg1_vec
+                        .into_iter()
+                        .cartesian_product(arg2_vec.into_iter())
+                        .cartesian_product(arg3_vec.into_iter())
+                        .map(|((arg1, arg2), arg3)| {
+                            Expr::Call(Box::new(Func::Substr(arg1, arg2, arg3)))
+                        })
+                })
+                .flatten()
+                .collect();
+
+            // add(arg1, arg2)
+            let adds: Vec<Expr<AbsStrVal, StrLenLat>> = (0..size)
+                .combinations(2)
+                .map(|args| {
+                    let arg1_vec = concretize(ctx, args[0]);
+                    let arg2_vec = concretize(ctx, args[1]);
+                    arg1_vec
+                        .into_iter()
+                        .cartesian_product(arg2_vec.into_iter())
+                        .map(|(arg1, arg2)| Expr::Call(Box::new(Func::Add(arg1, arg2))))
+                })
+                .flatten()
+                .collect();
 
             // sub(arg1, arg2)
             let subs: Vec<Expr<AbsStrVal, StrLenLat>> = (0..size)
@@ -206,7 +238,9 @@ fn concretize(ctx: &mut Context, size: u32) -> Vec<Expr<AbsStrVal, StrLenLat>> {
 
             let all_exprs: Vec<Expr<AbsStrVal, StrLenLat>> = appends
                 .into_iter()
-                // .chain(replaces.into_iter())
+                .chain(replaces.into_iter())
+                .chain(substrs.into_iter())
+                .chain(adds.into_iter())
                 .chain(subs.into_iter())
                 .chain(lens.into_iter())
                 .collect();
@@ -222,7 +256,7 @@ fn visit(
     consts: &Vec<StrVal>,
     env: &HashMap<String, AbsStrVal>,
 ) -> Vec<Expr<AbsStrVal, StrLenLat>> {
-    println!("{:?}", expr);
+    // println!("{:?}", expr);
     match expr {
         Expr::Hole(abs, None) => {
             let mut expanded = Vec::new();
@@ -320,6 +354,17 @@ fn visit(
                     .map(|(a1, a2)| Expr::Call(Box::new(Func::Append(a1, a2))))
                     .collect()
             }
+            Func::Replace(arg1, arg2, arg3) => {
+                let arg1_expanded = visit(ctx, arg1, consts, env);
+                let arg2_expanded = visit(ctx, arg2, consts, env);
+                let arg3_expanded = visit(ctx, arg3, consts, env);
+                arg1_expanded
+                    .into_iter()
+                    .zip(arg2_expanded.into_iter())
+                    .zip(arg3_expanded.into_iter())
+                    .map(|((a1, a2), a3)| Expr::Call(Box::new(Func::Replace(a1, a2, a3))))
+                    .collect()
+            }
             Func::Substr(arg1, arg2, arg3) => {
                 let arg1_expanded = visit(ctx, arg1, consts, env);
                 let arg2_expanded = visit(ctx, arg2, consts, env);
@@ -338,6 +383,15 @@ fn visit(
                     .map(|a1| Expr::Call(Box::new(Func::Len(a1))))
                     .collect()
             }
+            Func::Add(arg1, arg2) => {
+                let arg1_expanded = visit(ctx, arg1, consts, env);
+                let arg2_expanded = visit(ctx, arg2, consts, env);
+                arg1_expanded
+                    .into_iter()
+                    .zip(arg2_expanded.into_iter())
+                    .map(|(a1, a2)| Expr::Call(Box::new(Func::Add(a1, a2))))
+                    .collect()
+            }
             Func::Sub(arg1, arg2) => {
                 let arg1_expanded = visit(ctx, arg1, consts, env);
                 let arg2_expanded = visit(ctx, arg2, consts, env);
@@ -346,10 +400,6 @@ fn visit(
                     .zip(arg2_expanded.into_iter())
                     .map(|(a1, a2)| Expr::Call(Box::new(Func::Sub(a1, a2))))
                     .collect()
-            }
-            _ => {
-                println!("==> {:?}", f);
-                todo!()
             }
         },
         _ => vec![expr],
@@ -394,8 +444,8 @@ fn main() {
     //         Call(Sub(Const(Conc(Int(LinearExpr { c: 3, terms: {} }))), Call(Len(Var("arg0")))))))))
 
     println!(
-        "{:?}",
-        gen_expr(&mut ctx, StrLenLat::from(target), &consts, &env)
+        "{}",
+        gen_expr(&mut ctx, StrLenLat::from(target), &consts, &env)[0]
     );
 }
 // (substr arg0 0 (- 0 (- 3 (len arg0)))
