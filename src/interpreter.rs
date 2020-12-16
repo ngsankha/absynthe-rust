@@ -1,14 +1,7 @@
-use crate::concrete::*;
 use crate::environment::Environment;
+use crate::values::{Lattice, Value};
 use std::fmt;
 use std::fmt::{Debug, Display};
-
-pub trait Lattice: PartialOrd + PartialEq {
-    // fn meet(&self, other: &Self) -> Self;
-    // fn join(&self, other: &Self) -> Self;
-    fn top() -> Self;
-    fn bot() -> Self;
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum AbsValue<T: Lattice, U> {
@@ -46,10 +39,6 @@ impl<T: Lattice, U> AbsValue<T, U> {
     }
 }
 
-pub trait Value: Clone {
-    // fn error() -> Self;
-}
-
 pub trait Abstractable<T> {
     fn abstraction(&self) -> Option<T>;
 }
@@ -57,3 +46,5 @@ pub trait Abstractable<T> {
 pub trait Evaluable<T: Value + Debug, U: Lattice> {
     fn eval(&self, env: &Environment<T>) -> EvalResult<T>;
 }
+
+pub type EvalResult<T: Value> = Result<T, &'static str>;
