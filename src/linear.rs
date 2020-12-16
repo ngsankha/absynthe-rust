@@ -79,6 +79,14 @@ impl LinearExpr {
     pub fn is_const(&self) -> bool {
         self.terms.values().all(|&x| x == 0)
     }
+
+    pub fn as_const(&self) -> Option<i32> {
+        if self.is_const() {
+            Some(self.c)
+        } else {
+            None
+        }
+    }
 }
 
 impl Mul for LinearExpr {

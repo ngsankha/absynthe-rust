@@ -1,5 +1,5 @@
 use crate::concrete::*;
-use std::collections::HashMap;
+use crate::environment::Environment;
 use std::fmt;
 use std::fmt::{Debug, Display};
 
@@ -47,27 +47,13 @@ impl<T: Lattice, U> AbsValue<T, U> {
 }
 
 pub trait Value: Clone {
-    fn error() -> Self;
+    // fn error() -> Self;
 }
 
 pub trait Abstractable<T> {
     fn abstraction(&self) -> Option<T>;
 }
 
-pub trait Interpreter<T: Value + Debug, U: Lattice> {
-    fn eval(expr: &Expr<T, U>, env: &HashMap<String, T>) -> Result<T, &'static str> {
-        let t = match expr {
-            Expr::Const(v) => Ok(v.clone()),
-            Expr::Var(x) => match env.get(x) {
-                Some(val) => Ok(val.clone()),
-                None => Ok(T::error()),
-            },
-            Expr::Call(call) => Ok(Self::eval_call(call, env)),
-            _ => Err("holes cannot be processed"),
-        };
-        println!("{:?}", t.clone().unwrap());
-        t
-    }
-
-    fn eval_call(expr: &Func<T, U>, env: &HashMap<String, T>) -> T;
+pub trait Evaluable<T: Value + Debug, U: Lattice> {
+    fn eval(&self, env: &Environment<T>) -> EvalResult<T>;
 }
