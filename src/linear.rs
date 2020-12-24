@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::fmt;
@@ -24,6 +25,17 @@ impl Display for LinearExpr {
             write!(f, "{} + {}", stringified, self.c)
         } else {
             write!(f, "{}", stringified)
+        }
+    }
+}
+
+impl PartialOrd for LinearExpr {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let lhs = self.as_const();
+        let rhs = other.as_const();
+        match (lhs, rhs) {
+            (Some(l), Some(r)) => l.partial_cmp(&r),
+            _ => None,
         }
     }
 }

@@ -1,307 +1,560 @@
-use crate::concrete::*;
-use crate::interpreter::*;
-use crate::linear::*;
-use std::cmp::Ordering;
+use crate::concrete::StrVal;
+use crate::environment::Environment;
+use crate::interpreter::{ConcretizedSynth, EvalResult, Evaluable, SynthesisVisitor};
+use crate::strlenlat::StrLenLat;
+use crate::syguslang::{Expr, Func};
+use crate::values::{Lattice, MixedValue, Value};
+use itertools::Itertools;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::fmt;
-use std::fmt::{Debug, Display};
-use std::ops::Sub;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum StrLenLat {
-    Top,
-    Len(LinearExpr),
-    Bot,
-}
+pub type StrValAbs = MixedValue<StrVal, StrLenLat>;
 
-impl Display for StrLenLat {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl Evaluable<StrValAbs> for Expr<StrValAbs, StrLenLat> {
+    fn eval(&self, env: &Environment<StrValAbs>) -> EvalResult<StrValAbs> {
         match self {
-            StrLenLat::Top => write!(f, "⊤"),
-            StrLenLat::Len(e) => write!(f, "{}", e),
-            StrLenLat::Bot => write!(f, "⊥"),
-        }
-    }
-}
-
-impl From<LinearExpr> for StrLenLat {
-    fn from(item: LinearExpr) -> Self {
-        StrLenLat::Len(item)
-    }
-}
-
-impl From<i32> for StrLenLat {
-    fn from(item: i32) -> Self {
-        StrLenLat::from(LinearExpr::from(item))
-    }
-}
-
-impl From<String> for StrLenLat {
-    fn from(item: String) -> Self {
-        StrLenLat::from(LinearExpr::from(item))
-    }
-}
-
-impl Sub for StrLenLat {
-    type Output = Self;
-
-    fn sub(self, other: Self) -> Self {
-        match (self, other) {
-            (StrLenLat::Top, _) => StrLenLat::Top,
-            (StrLenLat::Len(_), StrLenLat::Top) => StrLenLat::Top,
-            (StrLenLat::Len(l1), StrLenLat::Len(l2)) => StrLenLat::Len(l1 - l2),
-            (StrLenLat::Len(_), StrLenLat::Bot) => StrLenLat::Bot,
-            (StrLenLat::Bot, _) => StrLenLat::Bot,
-        }
-    }
-}
-
-impl PartialOrd for StrLenLat {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match self {
-            StrLenLat::Top => match other {
-                StrLenLat::Top => Some(Ordering::Equal),
-                _ => Some(Ordering::Greater),
-            },
-            StrLenLat::Len(l1) => match other {
-                StrLenLat::Top => Some(Ordering::Less),
-                StrLenLat::Len(l2) => {
-                    if l1 == l2 {
-                        Some(Ordering::Equal)
-                    } else {
-                        None
-                    }
-                }
-                StrLenLat::Bot => Some(Ordering::Greater),
-            },
-            StrLenLat::Bot => match other {
-                StrLenLat::Bot => Some(Ordering::Equal),
-                _ => Some(Ordering::Less),
-            },
-        }
-    }
-}
-
-impl Lattice for StrLenLat {
-    fn top() -> Self {
-        Self::Top
-    }
-
-    fn bot() -> Self {
-        Self::Bot
-    }
-}
-
-impl Abstractable<StrLenLat> for StrVal {
-    fn abstraction(&self) -> Option<StrLenLat> {
-        match self {
-            StrVal::Str(s) => Some(StrLenLat::Len(LinearExpr::from(s.chars().count() as i32))),
-            _ => None,
-        }
-    }
-}
-
-pub type AbsStrVal = AbsValue<StrLenLat, StrVal>;
-
-impl PartialOrd for AbsStrVal {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (self, other) {
-            (AbsStrVal::Abs(a1), AbsStrVal::Abs(a2)) => a1.partial_cmp(a2),
-            _ => None,
-        }
-    }
-}
-
-impl Lattice for AbsStrVal {
-    fn top() -> Self {
-        Self::Abs(StrLenLat::top())
-    }
-
-    fn bot() -> Self {
-        Self::Abs(StrLenLat::bot())
-    }
-}
-
-impl From<StrVal> for AbsStrVal {
-    fn from(item: StrVal) -> Self {
-        AbsValue::Conc(item)
-    }
-}
-
-impl From<StrLenLat> for AbsStrVal {
-    fn from(item: StrLenLat) -> Self {
-        AbsValue::Abs(item)
-    }
-}
-
-impl Value for AbsStrVal {
-    fn error() -> Self {
-        AbsValue::Conc(StrVal::Error)
-    }
-}
-
-impl AbsStrVal {
-    fn abstractable(&self) -> bool {
-        match self {
-            AbsStrVal::Conc(StrVal::Str(_)) => true,
-            _ => false,
-        }
-    }
-}
-
-pub struct StrLenInterp;
-
-impl Interpreter<AbsStrVal, StrLenLat> for StrLenInterp {
-    fn eval(
-        expr: &Expr<AbsStrVal, StrLenLat>,
-        env: &HashMap<String, AbsStrVal>,
-    ) -> Result<AbsStrVal, &'static str> {
-        match expr {
-            Expr::Const(v) => Ok(v.clone()),
-            Expr::Var(x) => match env.get(x) {
-                Some(val) => Ok(val.clone()),
-                None => Ok(AbsStrVal::error()),
-            },
-            Expr::Call(call) => Ok(Self::eval_call(call, env)),
-            Expr::Hole(v, _) => Ok(AbsStrVal::Abs(v.clone())),
+            Self::Const(v) => Ok(v.clone()),
+            Self::Var(x) => env
+                .get(x.clone())
+                .map(|v| v.clone())
+                .ok_or_else(|| "variable not found"),
+            Self::Call(call) => call.eval(env),
+            Self::If(cond, then, otherwise) => unimplemented!(),
+            Self::Hole(abs, _) => Ok(StrValAbs::from_abstract(abs.clone())),
             _ => unreachable!(),
         }
     }
+}
 
-    fn eval_call(expr: &Func<AbsStrVal, StrLenLat>, env: &HashMap<String, AbsStrVal>) -> AbsStrVal {
-        match expr {
-            Func::Append(s1, s2) => {
-                Self::abs_str_append(Self::eval(s1, env).unwrap(), Self::eval(s2, env).unwrap())
+impl Evaluable<StrValAbs> for Func<StrValAbs, StrLenLat> {
+    fn eval(&self, env: &Environment<StrValAbs>) -> EvalResult<StrValAbs> {
+        match self {
+            Self::Append(arg1, arg2) => {
+                let arg1_evaled = arg1.eval(env);
+                let arg2_evaled = arg2.eval(env);
+                match (arg1_evaled, arg2_evaled) {
+                    (Ok(StrValAbs::Conc(c1)), Ok(StrValAbs::Conc(c2))) => {
+                        Func::Append::<StrVal, StrLenLat>(Expr::Const(c1), Expr::Const(c2))
+                            .eval(&Environment::new())
+                            .map(|v| StrValAbs::from_concrete(v))
+                    }
+                    (Ok(a1), Ok(a2)) => Self::str_append(a1, a2),
+                    _ => Err("append: invalid argument"),
+                }
             }
-            Func::Replace(s1, s2, s3) => Self::abs_str_replace(
-                Self::eval(s1, env).unwrap(),
-                Self::eval(s2, env).unwrap(),
-                Self::eval(s3, env).unwrap(),
-            ),
-            Func::Substr(s1, s2, s3) => Self::abs_str_substr(
-                Self::eval(s1, env).unwrap(),
-                Self::eval(s2, env).unwrap(),
-                Self::eval(s3, env).unwrap(),
-            ),
-            Func::Add(i, j) => {
-                Self::abs_int_add(Self::eval(i, env).unwrap(), Self::eval(j, env).unwrap())
+            Self::Replace(arg1, arg2, arg3) => {
+                let arg1_evaled = arg1.eval(env);
+                let arg2_evaled = arg2.eval(env);
+                let arg3_evaled = arg3.eval(env);
+                match (arg1_evaled, arg2_evaled, arg3_evaled) {
+                    (Ok(StrValAbs::Conc(c1)), Ok(StrValAbs::Conc(c2)), Ok(StrValAbs::Conc(c3))) => {
+                        Func::Replace::<StrVal, StrLenLat>(
+                            Expr::Const(c1),
+                            Expr::Const(c2),
+                            Expr::Const(c3),
+                        )
+                        .eval(&Environment::new())
+                        .map(|v| StrValAbs::from_concrete(v))
+                    }
+                    (Ok(a1), Ok(a2), Ok(a3)) => Self::str_replace(a1, a2, a3),
+                    _ => Err("replace: invalid argument"),
+                }
             }
-            Func::Sub(i, j) => {
-                Self::abs_int_sub(Self::eval(i, env).unwrap(), Self::eval(j, env).unwrap())
+            Self::Substr(arg1, arg2, arg3) => {
+                let arg1_evaled = arg1.eval(env);
+                let arg2_evaled = arg2.eval(env);
+                let arg3_evaled = arg3.eval(env);
+                match (arg1_evaled, arg2_evaled, arg3_evaled) {
+                    (Ok(StrValAbs::Conc(c1)), Ok(StrValAbs::Conc(c2)), Ok(StrValAbs::Conc(c3))) => {
+                        Func::Substr::<StrVal, StrLenLat>(
+                            Expr::Const(c1),
+                            Expr::Const(c2),
+                            Expr::Const(c3),
+                        )
+                        .eval(&Environment::new())
+                        .map(|v| StrValAbs::from_concrete(v))
+                    }
+                    (Ok(a1), Ok(a2), Ok(a3)) => Self::str_substr(a1, a2, a3),
+                    _ => Err("substr: invalid argument"),
+                }
             }
-            Func::Len(s) => Self::abs_str_len(Self::eval(s, env).unwrap()),
+            Self::Add(arg1, arg2) => {
+                let arg1_evaled = arg1.eval(env);
+                let arg2_evaled = arg2.eval(env);
+                match (arg1_evaled, arg2_evaled) {
+                    (Ok(StrValAbs::Conc(c1)), Ok(StrValAbs::Conc(c2))) => {
+                        Func::Add::<StrVal, StrLenLat>(Expr::Const(c1), Expr::Const(c2))
+                            .eval(&Environment::new())
+                            .map(|v| StrValAbs::from_concrete(v))
+                    }
+                    (Ok(_), Ok(_)) => Err("invalid types"),
+                    _ => Err("substr: invalid argument"),
+                }
+            }
+            Self::Sub(arg1, arg2) => {
+                let arg1_evaled = arg1.eval(env);
+                let arg2_evaled = arg2.eval(env);
+                match (arg1_evaled, arg2_evaled) {
+                    (Ok(StrValAbs::Conc(c1)), Ok(StrValAbs::Conc(c2))) => {
+                        Func::Sub::<StrVal, StrLenLat>(Expr::Const(c1), Expr::Const(c2))
+                            .eval(&Environment::new())
+                            .map(|v| StrValAbs::from_concrete(v))
+                    }
+                    (Ok(_), Ok(_)) => Err("invalid types"),
+                    _ => Err("substr: invalid argument"),
+                }
+            }
+            Self::Len(arg) => {
+                let arg_evaled = arg.eval(env);
+                match arg_evaled {
+                    Ok(StrValAbs::Conc(c)) => Func::Len::<StrVal, StrLenLat>(Expr::Const(c))
+                        .eval(&Environment::new())
+                        .map(|v| StrValAbs::from_concrete(v)),
+                    Ok(a) => Self::str_len(a),
+                    _ => Err("substr: invalid argument"),
+                }
+            }
+            Self::At(arg1, arg2) => unimplemented!(),
+            Self::ToStr(arg) => unimplemented!(),
+            Self::ToInt(arg) => unimplemented!(),
+            Self::IndexOf(arg1, arg2, arg3) => unimplemented!(),
+            Self::PrefixOf(arg1, arg2) => unimplemented!(),
+            Self::SuffixOf(arg1, arg2) => unimplemented!(),
+            Self::Contains(arg1, arg2) => unimplemented!(),
         }
     }
 }
 
-impl StrLenInterp {
-    fn abs_str_append(v1: AbsStrVal, v2: AbsStrVal) -> AbsStrVal {
-        match (v1.clone(), v2.clone()) {
-            (AbsStrVal::Conc(c1), AbsStrVal::Conc(c2)) => match (c1.clone(), c2.clone()) {
-                (StrVal::Str(s1), StrVal::Str(s2)) => AbsStrVal::Conc(StrVal::Str(s1 + &s2)),
-                (_, _) => AbsStrVal::error(),
-            },
-            (AbsStrVal::Conc(c), AbsStrVal::Abs(_)) => {
-                let abs_v1 = c.abstraction();
-                if abs_v1.is_none() {
-                    AbsStrVal::error()
-                } else {
-                    Self::abs_str_append(AbsStrVal::Abs(abs_v1.unwrap()), v2)
-                }
-            }
-            (AbsStrVal::Abs(_), AbsStrVal::Conc(c)) => {
-                let abs_v2 = c.abstraction();
-                if abs_v2.is_none() {
-                    AbsStrVal::error()
-                } else {
-                    Self::abs_str_append(v1, AbsStrVal::Abs(abs_v2.unwrap()))
-                }
-            }
-            (AbsStrVal::Abs(s1), AbsStrVal::Abs(s2)) => match (s1, s2) {
-                (StrLenLat::Top, _) => AbsStrVal::top(),
-                (_, StrLenLat::Top) => AbsStrVal::top(),
-                (StrLenLat::Len(l1), StrLenLat::Len(l2)) => AbsStrVal::Abs(StrLenLat::Len(l1 + l2)),
-                (StrLenLat::Len(l1), StrLenLat::Bot) => AbsStrVal::Abs(StrLenLat::Len(l1)),
-                (StrLenLat::Bot, StrLenLat::Len(l2)) => AbsStrVal::Abs(StrLenLat::Len(l2)),
-                (_, _) => AbsStrVal::bot(),
-            },
+impl Func<StrValAbs, StrLenLat> {
+    fn str_append(arg1: StrValAbs, arg2: StrValAbs) -> EvalResult<StrValAbs> {
+        let absarg1 = StrLenLat::try_from(arg1);
+        let absarg2 = StrLenLat::try_from(arg2);
+        match (absarg1, absarg2) {
+            (Ok(a1), Ok(a2)) => Ok(StrValAbs::from_abstract(a1 + a2)),
+            _ => Err("invalid types"),
         }
     }
 
-    fn abs_str_replace(v1: AbsStrVal, v2: AbsStrVal, v3: AbsStrVal) -> AbsStrVal {
-        match (v1.clone(), v2.clone(), v3.clone()) {
-            (AbsStrVal::Conc(c1), AbsStrVal::Conc(c2), AbsStrVal::Conc(c3)) => match (c1, c2, c3) {
-                (StrVal::Str(s1), StrVal::Str(s2), StrVal::Str(s3)) => {
-                    AbsStrVal::Conc(StrVal::Str(s1.replace(&s2, &s3)))
-                }
-                _ => AbsStrVal::error(),
-            },
-            (AbsStrVal::Abs(_), AbsStrVal::Abs(_), AbsStrVal::Abs(_)) => AbsStrVal::top(),
-            _ => {
-                if v1.abstractable() && v2.abstractable() && v3.abstractable() {
-                    AbsStrVal::top()
-                } else {
-                    AbsStrVal::error()
-                }
-            }
+    fn str_replace(arg1: StrValAbs, arg2: StrValAbs, arg3: StrValAbs) -> EvalResult<StrValAbs> {
+        let absarg1 = StrLenLat::try_from(arg1);
+        let absarg2 = StrLenLat::try_from(arg2);
+        let absarg3 = StrLenLat::try_from(arg3);
+        match (absarg1, absarg2, absarg3) {
+            (Ok(_), Ok(_), Ok(_)) => Ok(StrValAbs::from_abstract(StrLenLat::top())),
+            _ => Err("invalid types"),
         }
     }
 
-    fn abs_str_substr(v1: AbsStrVal, v2: AbsStrVal, v3: AbsStrVal) -> AbsStrVal {
-        match (v1, v2, v3) {
-            (AbsStrVal::Conc(c1), AbsStrVal::Conc(c2), AbsStrVal::Conc(c3)) => match (c1, c2, c3) {
-                (StrVal::Str(s1), StrVal::Int(start), StrVal::Int(end)) => {
-                    if start.is_const() && end.is_const() {
-                        AbsStrVal::Conc(StrVal::Str(
-                            s1.chars()
-                                .skip(i32::try_from(start.clone()).unwrap() as usize)
-                                .take(i32::try_from(end - start).unwrap() as usize)
-                                .collect(),
-                        ))
-                    } else {
-                        AbsStrVal::error()
+    fn str_substr(arg1: StrValAbs, arg2: StrValAbs, arg3: StrValAbs) -> EvalResult<StrValAbs> {
+        let absarg1 = StrLenLat::try_from(arg1);
+        match (absarg1, arg2, arg3) {
+            (Ok(s), StrValAbs::Conc(StrVal::Int(start)), StrValAbs::Conc(StrVal::Int(end))) => {
+                match s {
+                    StrLenLat::Top => Ok(StrValAbs::from_abstract(StrLenLat::top())),
+                    StrLenLat::Len(l) => {
+                        if l >= start && end <= l && start <= end {
+                            Ok(StrValAbs::from_abstract(StrLenLat::from(end - start)))
+                        } else {
+                            Err("substring index mismatch")
+                        }
                     }
+                    StrLenLat::Bot => Ok(StrValAbs::from_abstract(StrLenLat::bot())),
                 }
-                _ => AbsStrVal::error(),
-            },
-            (_, AbsStrVal::Conc(StrVal::Int(start)), AbsStrVal::Conc(StrVal::Int(end))) => {
-                AbsStrVal::Abs(StrLenLat::Len(LinearExpr::from(end - start)))
             }
-            _ => AbsStrVal::error(),
+            _ => Err("invalid types"),
         }
     }
 
-    fn abs_int_add(v1: AbsStrVal, v2: AbsStrVal) -> AbsStrVal {
-        match (v1, v2) {
-            (AbsStrVal::Conc(c1), AbsStrVal::Conc(c2)) => match (c1, c2) {
-                (StrVal::Int(i), StrVal::Int(j)) => AbsStrVal::Conc(StrVal::Int(i + j)),
-                _ => AbsStrVal::error(),
-            },
-            _ => AbsStrVal::error(),
+    fn str_len(arg: StrValAbs) -> EvalResult<StrValAbs> {
+        let absarg = StrLenLat::try_from(arg);
+        match absarg {
+            Ok(StrLenLat::Len(l)) => Ok(StrValAbs::from_concrete(StrVal::from(l))),
+            _ => Err("cannot lift ⊤/⊥ to concrete int"),
         }
     }
+}
 
-    fn abs_int_sub(v1: AbsStrVal, v2: AbsStrVal) -> AbsStrVal {
-        match (v1, v2) {
-            (AbsStrVal::Conc(c1), AbsStrVal::Conc(c2)) => match (c1, c2) {
-                (StrVal::Int(i), StrVal::Int(j)) => AbsStrVal::Conc(StrVal::Int(i - j)),
-                _ => AbsStrVal::error(),
-            },
-            _ => AbsStrVal::error(),
+impl ConcretizedSynth<StrValAbs, StrLenLat> for Expr<StrValAbs, StrLenLat> {
+    fn concretize(
+        env: &Environment<StrValAbs>,
+        size: u32,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        let cached = cache.get(&size);
+
+        match cached {
+            Some(res) => (*res).clone(),
+            None => {
+                let generated: Vec<Expr<StrValAbs, StrLenLat>> =
+                    Self::concretize_appends(env, size, cache)
+                        .into_iter()
+                        .chain(Self::concretize_replaces(env, size, cache).into_iter())
+                        .chain(Self::concretize_substrs(env, size, cache).into_iter())
+                        .chain(Self::concretize_adds(env, size, cache).into_iter())
+                        .chain(Self::concretize_subs(env, size, cache).into_iter())
+                        .chain(Self::concretize_lens(env, size, cache).into_iter())
+                        .filter(|p| match p.eval(env) {
+                            Err(_) => false,
+                            _ => true,
+                        })
+                        .collect();
+                cache.insert(size, generated.clone());
+                generated
+            }
         }
     }
+}
 
-    fn abs_str_len(v: AbsStrVal) -> AbsStrVal {
-        match v {
-            AbsStrVal::Conc(c) => match c {
-                StrVal::Str(s) => {
-                    AbsStrVal::Conc(StrVal::Int(LinearExpr::from(s.chars().count() as i32)))
+impl Expr<StrValAbs, StrLenLat> {
+    fn concretize_appends(
+        env: &Environment<StrValAbs>,
+        size: u32,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        (0..size)
+            .combinations(2)
+            .map(|args| {
+                let arg1_vec = Self::concretize(env, args[0], cache);
+                let arg2_vec = Self::concretize(env, args[1], cache);
+
+                arg1_vec
+                    .into_iter()
+                    .cartesian_product(arg2_vec.into_iter())
+                    .map(|(arg1, arg2)| Expr::Call(Box::new(Func::Append(arg1, arg2))))
+            })
+            .flatten()
+            .collect()
+    }
+
+    fn concretize_replaces(
+        env: &Environment<StrValAbs>,
+        size: u32,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        (0..size)
+            .combinations(3)
+            .map(|args| {
+                let arg1_vec = Self::concretize(env, args[0], cache);
+                let arg2_vec = Self::concretize(env, args[1], cache);
+                let arg3_vec = Self::concretize(env, args[2], cache);
+
+                arg1_vec
+                    .into_iter()
+                    .cartesian_product(arg2_vec.into_iter())
+                    .cartesian_product(arg3_vec.into_iter())
+                    .map(|((arg1, arg2), arg3)| {
+                        Expr::Call(Box::new(Func::Replace(arg1, arg2, arg3)))
+                    })
+            })
+            .flatten()
+            .collect()
+    }
+
+    fn concretize_substrs(
+        env: &Environment<StrValAbs>,
+        size: u32,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        (0..size)
+            .combinations(3)
+            .map(|args| {
+                let arg1_vec = Self::concretize(env, args[0], cache);
+                let arg2_vec = Self::concretize(env, args[1], cache);
+                let arg3_vec = Self::concretize(env, args[2], cache);
+
+                arg1_vec
+                    .into_iter()
+                    .cartesian_product(arg2_vec.into_iter())
+                    .cartesian_product(arg3_vec.into_iter())
+                    .map(|((arg1, arg2), arg3)| {
+                        Expr::Call(Box::new(Func::Substr(arg1, arg2, arg3)))
+                    })
+            })
+            .flatten()
+            .collect()
+    }
+
+    fn concretize_adds(
+        env: &Environment<StrValAbs>,
+        size: u32,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        (0..size)
+            .combinations(2)
+            .map(|args| {
+                let arg1_vec = Self::concretize(env, args[0], cache);
+                let arg2_vec = Self::concretize(env, args[1], cache);
+
+                arg1_vec
+                    .into_iter()
+                    .cartesian_product(arg2_vec.into_iter())
+                    .map(|(arg1, arg2)| Expr::Call(Box::new(Func::Add(arg1, arg2))))
+            })
+            .flatten()
+            .collect()
+    }
+
+    fn concretize_subs(
+        env: &Environment<StrValAbs>,
+        size: u32,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        (0..size)
+            .combinations(2)
+            .map(|args| {
+                let arg1_vec = Self::concretize(env, args[0], cache);
+                let arg2_vec = Self::concretize(env, args[1], cache);
+
+                arg1_vec
+                    .into_iter()
+                    .cartesian_product(arg2_vec.into_iter())
+                    .map(|(arg1, arg2)| Expr::Call(Box::new(Func::Sub(arg1, arg2))))
+            })
+            .flatten()
+            .collect()
+    }
+
+    fn concretize_lens(
+        env: &Environment<StrValAbs>,
+        size: u32,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        (0..size)
+            .combinations(2)
+            .map(|args| {
+                let arg1_vec = Self::concretize(env, args[0], cache);
+
+                arg1_vec
+                    .into_iter()
+                    .map(|arg1| Expr::Call(Box::new(Func::Len(arg1))))
+            })
+            .flatten()
+            .collect()
+    }
+}
+
+impl SynthesisVisitor<StrValAbs, StrLenLat> for Expr<StrValAbs, StrLenLat> {
+    fn visit(
+        &self,
+        env: &Environment<StrValAbs>,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        match self {
+            Expr::If(cond, then, otherwise) => cond
+                .visit(env, cache)
+                .into_iter()
+                .zip(then.visit(env, cache).into_iter())
+                .zip(otherwise.visit(env, cache).into_iter())
+                .map(|((a1, a2), a3)| Expr::If(Box::new(a1), Box::new(a2), Box::new(a3)))
+                .collect(),
+            Expr::Call(f) => f.visit(env, cache),
+            Expr::Hole(abs, expr) => Self::visit_hole(abs, expr, env, cache),
+            Expr::ConcHole(_) => unreachable!(),
+            Expr::DepHole => unreachable!(),
+            Expr::Const(c) => vec![Expr::Const(c.clone())],
+            Expr::Var(v) => vec![Expr::Var(v.clone())],
+        }
+    }
+}
+
+impl Expr<StrValAbs, StrLenLat> {
+    fn visit_hole(
+        target: &StrLenLat,
+        expr: &Option<Box<Func<StrValAbs, StrLenLat>>>,
+        env: &Environment<StrValAbs>,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        match expr {
+            None => cache
+                .get(&0)
+                .map_or(vec![], |v| v.clone())
+                .into_iter()
+                .filter(|p| match p.eval(env) {
+                    Ok(v) => v <= StrValAbs::from_abstract(target.clone()),
+                    Err(_) => false,
+                })
+                .chain(
+                    Self::gen_call()
+                        .into_iter()
+                        .map(|f| Expr::Hole(target.clone(), Some(Box::new(f)))),
+                )
+                .collect(),
+            // the following match should have all the functions returned by gen_call
+            Some(partial_expr) => match **partial_expr {
+                Func::Append(Expr::ConcHole(size), Expr::DepHole) => {
+                    Self::concretize(env, size, cache)
+                        .into_iter()
+                        .filter_map(|conc| {
+                            Self::str_append_inv(target, &conc, env).map(|lat| {
+                                Expr::Call(Box::new(Func::Append(conc, Expr::Hole(lat, None))))
+                            })
+                        })
+                        .chain(vec![Expr::Hole(
+                            target.clone(),
+                            Some(Box::new(Func::Append(
+                                Expr::ConcHole(size + 1),
+                                Expr::DepHole,
+                            ))),
+                        )])
+                        .collect()
                 }
-                _ => AbsStrVal::error(),
+                Func::Substr(Expr::DepHole, Expr::ConcHole(size1), Expr::ConcHole(size2)) => {
+                    Self::concretize(env, size1, cache)
+                        .into_iter()
+                        .cartesian_product(Self::concretize(env, size2, cache).into_iter())
+                        .filter_map(|(conc1, conc2)| {
+                            Self::str_substr_inv(target, &conc1, &conc2, env).map(|lat| {
+                                Expr::Call(Box::new(Func::Substr(
+                                    Expr::Hole(lat, None),
+                                    conc1,
+                                    conc2,
+                                )))
+                            })
+                        })
+                        .chain(vec![
+                            Expr::Hole(
+                                target.clone(),
+                                Some(Box::new(Func::Substr(
+                                    Expr::DepHole,
+                                    Expr::ConcHole(size1 + 1),
+                                    Expr::ConcHole(size2),
+                                ))),
+                            ),
+                            Expr::Hole(
+                                target.clone(),
+                                Some(Box::new(Func::Substr(
+                                    Expr::DepHole,
+                                    Expr::ConcHole(size1),
+                                    Expr::ConcHole(size2 + 1),
+                                ))),
+                            ),
+                        ])
+                        .collect()
+                }
+                _ => unreachable!(),
             },
-            AbsStrVal::Abs(StrLenLat::Len(l)) => AbsStrVal::Conc(StrVal::Int(l)),
-            _ => AbsStrVal::error(),
+        }
+    }
+
+    fn str_append_inv(
+        target: &StrLenLat,
+        arg1: &Expr<StrValAbs, StrLenLat>,
+        env: &Environment<StrValAbs>,
+    ) -> Option<StrLenLat> {
+        match arg1.eval(env) {
+            Ok(v) => match v {
+                StrValAbs::Abs(lat) => Some(target.clone() - lat),
+                StrValAbs::Conc(c) => StrLenLat::try_from(c).ok().map(|lat| target.clone() - lat),
+            },
+            _ => None,
+        }
+    }
+
+    fn str_substr_inv(
+        _target: &StrLenLat,
+        arg2: &Expr<StrValAbs, StrLenLat>,
+        arg3: &Expr<StrValAbs, StrLenLat>,
+        env: &Environment<StrValAbs>,
+    ) -> Option<StrLenLat> {
+        match (arg2.eval(env), arg3.eval(env)) {
+            (Ok(_), Ok(_)) => Some(StrLenLat::top()),
+            _ => None,
+        }
+    }
+
+    fn gen_call() -> Vec<Func<StrValAbs, StrLenLat>> {
+        vec![
+            Func::Append(Expr::ConcHole(0), Expr::DepHole),
+            Func::Substr(Expr::DepHole, Expr::ConcHole(0), Expr::ConcHole(0)),
+        ]
+    }
+}
+
+impl SynthesisVisitor<StrValAbs, StrLenLat> for Func<StrValAbs, StrLenLat> {
+    fn visit(
+        &self,
+        env: &Environment<StrValAbs>,
+        cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
+    ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        match self {
+            Func::Append(arg1, arg2) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .map(|(a1, a2)| Expr::Call(Box::new(Func::Append(a1, a2))))
+                .collect(),
+            Func::Replace(arg1, arg2, arg3) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .zip(arg3.visit(env, cache).into_iter())
+                .map(|((a1, a2), a3)| Expr::Call(Box::new(Func::Replace(a1, a2, a3))))
+                .collect(),
+            Func::Substr(arg1, arg2, arg3) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .zip(arg3.visit(env, cache).into_iter())
+                .map(|((a1, a2), a3)| Expr::Call(Box::new(Func::Substr(a1, a2, a3))))
+                .collect(),
+            Func::Add(arg1, arg2) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .map(|(a1, a2)| Expr::Call(Box::new(Func::Add(a1, a2))))
+                .collect(),
+            Func::Sub(arg1, arg2) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .map(|(a1, a2)| Expr::Call(Box::new(Func::Sub(a1, a2))))
+                .collect(),
+            Func::Len(arg) => arg
+                .visit(env, cache)
+                .into_iter()
+                .map(|a| Expr::Call(Box::new(Func::Len(a))))
+                .collect(),
+            Func::At(arg1, arg2) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .map(|(a1, a2)| Expr::Call(Box::new(Func::At(a1, a2))))
+                .collect(),
+            Func::ToStr(arg) => arg
+                .visit(env, cache)
+                .into_iter()
+                .map(|a| Expr::Call(Box::new(Func::ToStr(a))))
+                .collect(),
+            Func::ToInt(arg) => arg
+                .visit(env, cache)
+                .into_iter()
+                .map(|a| Expr::Call(Box::new(Func::ToInt(a))))
+                .collect(),
+            Func::IndexOf(arg1, arg2, arg3) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .zip(arg3.visit(env, cache).into_iter())
+                .map(|((a1, a2), a3)| Expr::Call(Box::new(Func::IndexOf(a1, a2, a3))))
+                .collect(),
+            Func::PrefixOf(arg1, arg2) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .map(|(a1, a2)| Expr::Call(Box::new(Func::PrefixOf(a1, a2))))
+                .collect(),
+            Func::SuffixOf(arg1, arg2) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .map(|(a1, a2)| Expr::Call(Box::new(Func::SuffixOf(a1, a2))))
+                .collect(),
+            Func::Contains(arg1, arg2) => arg1
+                .visit(env, cache)
+                .into_iter()
+                .zip(arg2.visit(env, cache).into_iter())
+                .map(|(a1, a2)| Expr::Call(Box::new(Func::Contains(a1, a2))))
+                .collect(),
         }
     }
 }

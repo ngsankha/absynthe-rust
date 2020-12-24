@@ -29,72 +29,6 @@ impl Display for StrVal {
     }
 }
 
-impl<T: Value, U: Lattice> Expr<T, U> {
-    pub fn has_hole(&self) -> bool {
-        match self {
-            Self::Hole(_, _) => true,
-            Self::ConcHole(_) => true,
-            Self::DepHole => true,
-            Self::Const(_) => false,
-            Self::Var(_) => false,
-            Self::Call(f) => match &*(*f) {
-                Func::Append(arg1, arg2) => arg1.has_hole() || arg2.has_hole(),
-                Func::Replace(arg1, arg2, arg3) => {
-                    arg1.has_hole() || arg2.has_hole() || arg3.has_hole()
-                }
-                Func::Substr(arg1, arg2, arg3) => {
-                    arg1.has_hole() || arg2.has_hole() || arg3.has_hole()
-                }
-                Func::Add(arg1, arg2) => arg1.has_hole() || arg2.has_hole(),
-                Func::Sub(arg1, arg2) => arg1.has_hole() || arg2.has_hole(),
-                Func::Len(arg) => arg.has_hole(),
-                Func::At(arg1, arg2) => arg1.has_hole() || arg2.has_hole(),
-                Func::ToStr(arg) => arg.has_hole(),
-                Func::ToInt(arg) => arg.has_hole(),
-                Func::IndexOf(arg1, arg2, arg3) => {
-                    arg1.has_hole() || arg2.has_hole() || arg3.has_hole()
-                }
-                Func::PrefixOf(arg1, arg2) => arg1.has_hole() || arg2.has_hole(),
-                Func::SuffixOf(arg1, arg2) => arg1.has_hole() || arg2.has_hole(),
-                Func::Contains(arg1, arg2) => arg1.has_hole() || arg2.has_hole(),
-            },
-            Self::If(cond, then, otherwise) => {
-                cond.has_hole() || then.has_hole() || otherwise.has_hole()
-            }
-        }
-    }
-
-    pub fn size(&self) -> u32 {
-        match self {
-            Self::Call(f) => f.size(),
-            Self::If(cond, then, otherwise) => cond.size() + then.size() + otherwise.size(),
-            Self::Hole(_, Some(f)) => f.size(),
-            Self::ConcHole(s) => *s,
-            _ => 0,
-        }
-    }
-}
-
-impl<T: Value, U: Lattice> Func<T, U> {
-    fn size(&self) -> u32 {
-        (match self {
-            Self::Append(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::Replace(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size(),
-            Self::Substr(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size(),
-            Self::Add(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::Sub(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::Len(arg) => arg.size(),
-            Self::At(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::ToStr(arg) => arg.size(),
-            Self::ToInt(arg) => arg.size(),
-            Self::IndexOf(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size(),
-            Self::PrefixOf(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::SuffixOf(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::Contains(arg1, arg2) => arg1.size() + arg2.size(),
-        }) + 1
-    }
-}
-
 impl From<String> for StrVal {
     fn from(item: String) -> Self {
         StrVal::Str(item)
@@ -107,7 +41,13 @@ impl From<i32> for StrVal {
     }
 }
 
-impl<U: Lattice> Evaluable<StrVal, U> for Expr<StrVal, U> {
+impl From<LinearExpr> for StrVal {
+    fn from(item: LinearExpr) -> Self {
+        StrVal::Int(item)
+    }
+}
+
+impl<U: Lattice> Evaluable<StrVal> for Expr<StrVal, U> {
     fn eval(&self, env: &Environment<StrVal>) -> EvalResult<StrVal> {
         match self {
             Self::Const(v) => Ok(v.clone()),
@@ -125,7 +65,7 @@ impl<U: Lattice> Evaluable<StrVal, U> for Expr<StrVal, U> {
                     _ => Err("if: invalid argument"),
                 }
             }
-            _ => Err("holes cannot be processed"),
+            _ => unreachable!(),
         }
     }
 }
@@ -139,7 +79,7 @@ impl<U: Lattice> Expr<StrVal, U> {
     }
 }
 
-impl<U: Lattice> Evaluable<StrVal, U> for Func<StrVal, U> {
+impl<U: Lattice> Evaluable<StrVal> for Func<StrVal, U> {
     fn eval(&self, env: &Environment<StrVal>) -> EvalResult<StrVal> {
         match self {
             Self::Append(arg1, arg2) => {

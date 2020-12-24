@@ -1,50 +1,27 @@
 use crate::environment::Environment;
+use crate::syguslang::Expr;
 use crate::values::{Lattice, Value};
-use std::fmt;
-use std::fmt::{Debug, Display};
+use std::collections::HashMap;
+use std::fmt::Debug;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum AbsValue<T: Lattice, U> {
-    Abs(T),
-    Conc(U),
-}
+pub type EvalResult<T: Value> = Result<T, &'static str>;
 
-impl<T: Lattice + Display, U: Display> Display for AbsValue<T, U> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AbsValue::Abs(v) => write!(f, "{}", v),
-            AbsValue::Conc(v) => write!(f, "{}", v),
-        }
-    }
-}
-
-impl<T: Lattice, U> AbsValue<T, U> {
-    fn is_abstract(&self) -> bool {
-        match self {
-            AbsValue::Abs(_) => true,
-            _ => false,
-        }
-    }
-
-    fn is_concrete(&self) -> bool {
-        !self.is_abstract()
-    }
-
-    pub fn top() -> Self {
-        AbsValue::Abs(T::top())
-    }
-
-    pub fn bot() -> Self {
-        AbsValue::Abs(T::bot())
-    }
-}
-
-pub trait Abstractable<T> {
-    fn abstraction(&self) -> Option<T>;
-}
-
-pub trait Evaluable<T: Value + Debug, U: Lattice> {
+pub trait Evaluable<T: Value + Debug> {
     fn eval(&self, env: &Environment<T>) -> EvalResult<T>;
 }
 
-pub type EvalResult<T: Value> = Result<T, &'static str>;
+pub trait ConcretizedSynth<T: Value, U: Lattice> {
+    fn concretize(
+        env: &Environment<T>,
+        size: u32,
+        cache: &mut HashMap<u32, Vec<Expr<T, U>>>,
+    ) -> Vec<Expr<T, U>>;
+}
+
+pub trait SynthesisVisitor<T: Value, U: Lattice> {
+    fn visit(
+        &self,
+        env: &Environment<T>,
+        cache: &mut HashMap<u32, Vec<Expr<T, U>>>,
+    ) -> Vec<Expr<T, U>>;
+}
