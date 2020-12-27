@@ -37,7 +37,9 @@ impl<T: Value + Display, U: Lattice> Display for Expr<T, U> {
             Self::Var(var) => write!(f, "{}", var),
             Self::Call(func) => write!(f, "{}", func),
             Self::If(cond, then, otherwise) => write!(f, "(if {} {} {})", cond, then, otherwise),
-            _ => unreachable!(),
+            Self::Hole(lat, _) => write!(f, "(□: {})", lat),
+            Self::DepHole => write!(f, "□"),
+            Self::ConcHole(size) => write!(f, "□({})", size),
         }
     }
 }
@@ -47,7 +49,7 @@ impl<T: Value + Display, U: Lattice> Display for Func<T, U> {
         match self {
             Self::Append(arg1, arg2) => write!(f, "(append {} {})", arg1, arg2),
             Self::Replace(arg1, arg2, arg3) => write!(f, "(replace {} {} {})", arg1, arg2, arg3),
-            Self::Substr(arg1, arg2, arg3) => write!(f, "(append {} {} {})", arg1, arg2, arg3),
+            Self::Substr(arg1, arg2, arg3) => write!(f, "(substr {} {} {})", arg1, arg2, arg3),
             Self::Add(arg1, arg2) => write!(f, "(+ {} {})", arg1, arg2),
             Self::Sub(arg1, arg2) => write!(f, "(- {} {})", arg1, arg2),
             Self::Len(arg1) => write!(f, "(len {})", arg1),
@@ -66,8 +68,8 @@ impl<T: Value, U: Lattice> Expr<T, U> {
     pub fn has_hole(&self) -> bool {
         match self {
             Self::Hole(_, _) => true,
-            Self::ConcHole(_) => true,
-            Self::DepHole => true,
+            Self::ConcHole(_) => unreachable!(),
+            Self::DepHole => unreachable!(),
             Self::Const(_) => false,
             Self::Var(_) => false,
             Self::Call(f) => f.has_hole(),

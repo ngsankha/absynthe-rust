@@ -1,5 +1,6 @@
 use absynthe::concrete::StrVal;
 use absynthe::environment::Environment;
+use absynthe::interpreter::EvalResult;
 use absynthe::interpreter::{Evaluable, SynthesisVisitor};
 use absynthe::linear::LinearExpr;
 use absynthe::r#abstract::StrValAbs;
@@ -29,10 +30,21 @@ impl Context {
     }
 }
 
+fn wrap_func(expr: Expr<StrValAbs, StrLenLat>) -> impl Fn(&[StrValAbs]) -> EvalResult<StrValAbs> {
+    move |args: &[StrValAbs]| {
+        let mut env = Environment::new();
+        args.into_iter()
+            .enumerate()
+            .for_each(|(idx, val)| env.put(format!("arg{}", idx), val.clone()));
+        expr.eval(&env)
+    }
+}
+
 fn synthesize(
     ctx: &mut Context,
     target: StrLenLat,
     env: &Environment<StrValAbs>,
+    test: Box<dyn Fn(Box<dyn Fn(&[StrValAbs]) -> EvalResult<StrValAbs>>) -> bool>,
 ) -> Vec<Expr<StrValAbs, StrLenLat>> {
     let start = Expr::Hole(target.clone(), None);
     let mut work_list = vec![start];
@@ -46,20 +58,15 @@ fn synthesize(
                 true => Either::Right(x),
                 false => Either::Left(x),
             });
+        // for c in concrete.clone() {
+        //     println!("{}", c);
+        // }
 
-        // TODO: insert testing code here
         let correct: Vec<Expr<StrValAbs, StrLenLat>> = concrete
             .into_iter()
             .filter(|p| {
-                let mut env = Environment::new();
-                env.put(
-                    "arg0".to_string(),
-                    StrValAbs::Conc(StrVal::from("Ducati100".to_string())),
-                );
-                match p.eval(&env) {
-                    Ok(StrValAbs::Conc(StrVal::Str(v))) => v == "Ducati",
-                    _ => false,
-                }
+                let func = wrap_func(p.clone());
+                test(Box::new(func))
             })
             .collect();
 
@@ -79,9 +86,15 @@ fn synthesize(
 }
 
 fn main() {
-    let mut consts = Vec::new();
-    consts.push(StrVal::from(0));
-    consts.push(StrVal::from(3));
+    let consts = vec![
+        StrVal::from(0),
+        StrVal::from(1),
+        StrVal::from(2),
+        StrVal::from(3),
+        // StrVal::from(4),
+        // StrVal::from(5),
+        StrVal::from(" ".to_string()),
+    ];
 
     let mut env = Environment::new();
     env.put(
@@ -109,6 +122,24 @@ fn main() {
 
     // println!("{:?}", correct.eval(&env));
 
-    println!("{}", synthesize(&mut ctx, StrLenLat::from(target), &env)[0]);
+    let test = |f: Box<dyn Fn(&[StrValAbs]) -> EvalResult<StrValAbs>>| {
+        f(&[StrValAbs::Conc(StrVal::from("Ducati100".to_string()))])
+            == Ok(StrValAbs::Conc(StrVal::from("Ducati".to_string())))
+            && f(&[StrValAbs::Conc(StrVal::from("Honda125".to_string()))])
+                == Ok(StrValAbs::Conc(StrVal::from("Honda".to_string())))
+            && f(&[StrValAbs::Conc(StrVal::from("Ducati250".to_string()))])
+                == Ok(StrValAbs::Conc(StrVal::from("Ducati".to_string())))
+            && f(&[StrValAbs::Conc(StrVal::from("Honda250".to_string()))])
+                == Ok(StrValAbs::Conc(StrVal::from("Honda".to_string())))
+            && f(&[StrValAbs::Conc(StrVal::from("Honda550".to_string()))])
+                == Ok(StrValAbs::Conc(StrVal::from("Honda".to_string())))
+            && f(&[StrValAbs::Conc(StrVal::from("Ducati125".to_string()))])
+                == Ok(StrValAbs::Conc(StrVal::from("Ducati".to_string())))
+    };
+
+    println!(
+        "{}",
+        synthesize(&mut ctx, StrLenLat::from(target), &env, Box::new(test))[0]
+    );
 }
 // (substr arg0 0 (- 0 (- 3 (len arg0)))

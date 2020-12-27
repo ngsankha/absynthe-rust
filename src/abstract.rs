@@ -3,7 +3,7 @@ use crate::environment::Environment;
 use crate::interpreter::{ConcretizedSynth, EvalResult, Evaluable, SynthesisVisitor};
 use crate::strlenlat::StrLenLat;
 use crate::syguslang::{Expr, Func};
-use crate::values::{Lattice, MixedValue, Value};
+use crate::values::{Lattice, MixedValue};
 use itertools::Itertools;
 use std::collections::HashMap;
 use std::convert::TryFrom;
@@ -212,7 +212,7 @@ impl Expr<StrValAbs, StrLenLat> {
         cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
     ) -> Vec<Expr<StrValAbs, StrLenLat>> {
         (0..size)
-            .combinations(2)
+            .permutations(2)
             .map(|args| {
                 let arg1_vec = Self::concretize(env, args[0], cache);
                 let arg2_vec = Self::concretize(env, args[1], cache);
@@ -232,7 +232,7 @@ impl Expr<StrValAbs, StrLenLat> {
         cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
     ) -> Vec<Expr<StrValAbs, StrLenLat>> {
         (0..size)
-            .combinations(3)
+            .permutations(3)
             .map(|args| {
                 let arg1_vec = Self::concretize(env, args[0], cache);
                 let arg2_vec = Self::concretize(env, args[1], cache);
@@ -256,7 +256,7 @@ impl Expr<StrValAbs, StrLenLat> {
         cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
     ) -> Vec<Expr<StrValAbs, StrLenLat>> {
         (0..size)
-            .combinations(3)
+            .permutations(3)
             .map(|args| {
                 let arg1_vec = Self::concretize(env, args[0], cache);
                 let arg2_vec = Self::concretize(env, args[1], cache);
@@ -280,7 +280,7 @@ impl Expr<StrValAbs, StrLenLat> {
         cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
     ) -> Vec<Expr<StrValAbs, StrLenLat>> {
         (0..size)
-            .combinations(2)
+            .permutations(2)
             .map(|args| {
                 let arg1_vec = Self::concretize(env, args[0], cache);
                 let arg2_vec = Self::concretize(env, args[1], cache);
@@ -300,7 +300,7 @@ impl Expr<StrValAbs, StrLenLat> {
         cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
     ) -> Vec<Expr<StrValAbs, StrLenLat>> {
         (0..size)
-            .combinations(2)
+            .permutations(2)
             .map(|args| {
                 let arg1_vec = Self::concretize(env, args[0], cache);
                 let arg2_vec = Self::concretize(env, args[1], cache);
@@ -320,7 +320,7 @@ impl Expr<StrValAbs, StrLenLat> {
         cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
     ) -> Vec<Expr<StrValAbs, StrLenLat>> {
         (0..size)
-            .combinations(2)
+            .permutations(2)
             .map(|args| {
                 let arg1_vec = Self::concretize(env, args[0], cache);
 
@@ -339,6 +339,7 @@ impl SynthesisVisitor<StrValAbs, StrLenLat> for Expr<StrValAbs, StrLenLat> {
         env: &Environment<StrValAbs>,
         cache: &mut HashMap<u32, Vec<Expr<StrValAbs, StrLenLat>>>,
     ) -> Vec<Expr<StrValAbs, StrLenLat>> {
+        // println!("{}", self);
         match self {
             Expr::If(cond, then, otherwise) => cond
                 .visit(env, cache)
@@ -399,6 +400,8 @@ impl Expr<StrValAbs, StrLenLat> {
                         .collect()
                 }
                 Func::Substr(Expr::DepHole, Expr::ConcHole(size1), Expr::ConcHole(size2)) => {
+                    // println!("{}", partial_expr);
+                    // println!("here ==> {} {}", size1, size2);
                     Self::concretize(env, size1, cache)
                         .into_iter()
                         .cartesian_product(Self::concretize(env, size2, cache).into_iter())
@@ -457,7 +460,9 @@ impl Expr<StrValAbs, StrLenLat> {
         env: &Environment<StrValAbs>,
     ) -> Option<StrLenLat> {
         match (arg2.eval(env), arg3.eval(env)) {
-            (Ok(_), Ok(_)) => Some(StrLenLat::top()),
+            (Ok(StrValAbs::Conc(StrVal::Int(_))), Ok(StrValAbs::Conc(StrVal::Int(_)))) => {
+                Some(StrLenLat::top())
+            }
             _ => None,
         }
     }
@@ -480,33 +485,33 @@ impl SynthesisVisitor<StrValAbs, StrLenLat> for Func<StrValAbs, StrLenLat> {
             Func::Append(arg1, arg2) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
                 .map(|(a1, a2)| Expr::Call(Box::new(Func::Append(a1, a2))))
                 .collect(),
             Func::Replace(arg1, arg2, arg3) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
-                .zip(arg3.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg3.visit(env, cache).into_iter())
                 .map(|((a1, a2), a3)| Expr::Call(Box::new(Func::Replace(a1, a2, a3))))
                 .collect(),
             Func::Substr(arg1, arg2, arg3) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
-                .zip(arg3.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg3.visit(env, cache).into_iter())
                 .map(|((a1, a2), a3)| Expr::Call(Box::new(Func::Substr(a1, a2, a3))))
                 .collect(),
             Func::Add(arg1, arg2) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
                 .map(|(a1, a2)| Expr::Call(Box::new(Func::Add(a1, a2))))
                 .collect(),
             Func::Sub(arg1, arg2) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
                 .map(|(a1, a2)| Expr::Call(Box::new(Func::Sub(a1, a2))))
                 .collect(),
             Func::Len(arg) => arg
@@ -517,7 +522,7 @@ impl SynthesisVisitor<StrValAbs, StrLenLat> for Func<StrValAbs, StrLenLat> {
             Func::At(arg1, arg2) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
                 .map(|(a1, a2)| Expr::Call(Box::new(Func::At(a1, a2))))
                 .collect(),
             Func::ToStr(arg) => arg
@@ -533,26 +538,26 @@ impl SynthesisVisitor<StrValAbs, StrLenLat> for Func<StrValAbs, StrLenLat> {
             Func::IndexOf(arg1, arg2, arg3) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
-                .zip(arg3.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg3.visit(env, cache).into_iter())
                 .map(|((a1, a2), a3)| Expr::Call(Box::new(Func::IndexOf(a1, a2, a3))))
                 .collect(),
             Func::PrefixOf(arg1, arg2) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
                 .map(|(a1, a2)| Expr::Call(Box::new(Func::PrefixOf(a1, a2))))
                 .collect(),
             Func::SuffixOf(arg1, arg2) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
                 .map(|(a1, a2)| Expr::Call(Box::new(Func::SuffixOf(a1, a2))))
                 .collect(),
             Func::Contains(arg1, arg2) => arg1
                 .visit(env, cache)
                 .into_iter()
-                .zip(arg2.visit(env, cache).into_iter())
+                .cartesian_product(arg2.visit(env, cache).into_iter())
                 .map(|(a1, a2)| Expr::Call(Box::new(Func::Contains(a1, a2))))
                 .collect(),
         }

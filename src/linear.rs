@@ -17,14 +17,16 @@ impl Display for LinearExpr {
             .terms
             .clone()
             .into_iter()
-            .filter(|(_, v)| *v == 0)
+            .filter(|(_, v)| *v != 0)
             .map(|(k, v)| format!("{}{}", v, k))
             .collect::<Vec<String>>()
             .join(" + ");
-        if self.c != 0 {
+        if self.c != 0 && stringified != "" {
             write!(f, "{} + {}", stringified, self.c)
-        } else {
+        } else if stringified != "" {
             write!(f, "{}", stringified)
+        } else {
+            write!(f, "{}", self.c)
         }
     }
 }
