@@ -5,4 +5,5 @@ pub mod interpreter;
 pub mod linear;
 pub mod strlenlat;
 pub mod syguslang;
+pub mod synthesizer;
 pub mod values;
