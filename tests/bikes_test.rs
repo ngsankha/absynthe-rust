@@ -10,11 +10,11 @@ use absynthe::synthesizer::{Context, Synthesizer};
 fn bikes() {
     let consts = vec![
         StrVal::from(0),
-        StrVal::from(1),
-        StrVal::from(2),
+        // StrVal::from(1),
+        // StrVal::from(2),
         StrVal::from(3),
-        StrVal::from(4),
-        StrVal::from(5),
+        // StrVal::from(4),
+        // StrVal::from(5),
         StrVal::from(" ".to_string()),
     ];
 
