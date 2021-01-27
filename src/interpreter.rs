@@ -1,5 +1,5 @@
 use crate::environment::Environment;
-use crate::syguslang::Expr;
+use crate::syguslang::Term;
 use crate::values::{Lattice, Value};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -14,14 +14,14 @@ pub trait ConcretizedSynth<T: Value, U: Lattice> {
     fn concretize(
         env: &Environment<T>,
         size: u32,
-        cache: &mut HashMap<u32, Vec<Expr<T, U>>>,
-    ) -> Vec<Expr<T, U>>;
+        cache: &mut HashMap<u32, Vec<Term<T, U>>>,
+    ) -> Vec<Term<T, U>>;
 }
 
 pub trait SynthesisVisitor<T: Value, U: Lattice> {
     fn visit(
         &self,
         env: &Environment<T>,
-        cache: &mut HashMap<u32, Vec<Expr<T, U>>>,
-    ) -> Vec<Expr<T, U>>;
+        cache: &mut HashMap<u32, Vec<Term<T, U>>>,
+    ) -> Vec<Term<T, U>>;
 }

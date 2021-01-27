@@ -1,14 +1,11 @@
-use crate::concrete::StrVal;
 use crate::linear::LinearExpr;
-use crate::r#abstract::StrValAbs;
 use crate::values::Lattice;
 use std::cmp::Ordering;
-use std::convert::TryFrom;
 use std::fmt;
 use std::fmt::Display;
 use std::ops::{Add, Sub};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum StrLenLat {
     Top,
     Len(LinearExpr),
@@ -103,28 +100,6 @@ impl PartialOrd for StrLenLat {
                 StrLenLat::Bot => Some(Ordering::Equal),
                 _ => Some(Ordering::Less),
             },
-        }
-    }
-}
-
-impl TryFrom<StrValAbs> for StrLenLat {
-    type Error = &'static str;
-
-    fn try_from(value: StrValAbs) -> Result<Self, Self::Error> {
-        match value {
-            StrValAbs::Conc(c) => Self::try_from(c),
-            StrValAbs::Abs(a) => Ok(a),
-        }
-    }
-}
-
-impl TryFrom<StrVal> for StrLenLat {
-    type Error = &'static str;
-
-    fn try_from(value: StrVal) -> Result<Self, Self::Error> {
-        match value {
-            StrVal::Str(s) => Ok(Self::from(s)),
-            _ => Err("cannot lift to lattice"),
         }
     }
 }

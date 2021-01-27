@@ -563,3 +563,25 @@ impl SynthesisVisitor<StrValAbs, StrLenLat> for Func<StrValAbs, StrLenLat> {
         }
     }
 }
+
+impl TryFrom<StrValAbs> for StrLenLat {
+    type Error = &'static str;
+
+    fn try_from(value: StrValAbs) -> Result<Self, Self::Error> {
+        match value {
+            StrValAbs::Conc(c) => Self::try_from(c),
+            StrValAbs::Abs(a) => Ok(a),
+        }
+    }
+}
+
+impl TryFrom<StrVal> for StrLenLat {
+    type Error = &'static str;
+
+    fn try_from(value: StrVal) -> Result<Self, Self::Error> {
+        match value {
+            StrVal::Str(s) => Ok(Self::from(s)),
+            _ => Err("cannot lift to lattice"),
+        }
+    }
+}

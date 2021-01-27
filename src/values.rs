@@ -18,7 +18,7 @@ pub trait Value: Clone + Display + PartialEq {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum MixedValue<T: Value, U: Lattice> {
     Conc(T),
     Abs(U),

@@ -280,11 +280,17 @@ impl<U: Lattice> Func<StrVal, U> {
             (StrVal::Str(recv), StrVal::Str(pat), StrVal::Int(start)) => {
                 let at = start.as_const();
                 match at {
-                    Some(s) => Ok(StrVal::Int(LinearExpr::from(
-                        recv[(s as usize)..]
-                            .find(&pat)
-                            .map_or_else(|| -1, |i| s + (i as i32)),
-                    ))),
+                    Some(s) => {
+                        if recv.len() > (s as usize) {
+                            Ok(StrVal::Int(LinearExpr::from(
+                                recv[(s as usize)..]
+                                    .find(&pat)
+                                    .map_or_else(|| -1, |i| s + (i as i32)),
+                            )))
+                        } else {
+                            Err("index overflow")
+                        }
+                    }
                     None => Err("expected constant index"),
                 }
             }

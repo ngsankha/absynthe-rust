@@ -1,31 +1,34 @@
 use crate::values::{Lattice, Value};
 use std::fmt;
 use std::fmt::Display;
+use std::rc::Rc;
 
-#[derive(Debug, Clone)]
+pub type Term<T, U> = Rc<Expr<T, U>>;
+
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Func<T: Value, U: Lattice> {
-    Append(Expr<T, U>, Expr<T, U>),
-    Replace(Expr<T, U>, Expr<T, U>, Expr<T, U>),
-    Substr(Expr<T, U>, Expr<T, U>, Expr<T, U>),
-    Add(Expr<T, U>, Expr<T, U>),
-    Sub(Expr<T, U>, Expr<T, U>),
-    Len(Expr<T, U>),
-    At(Expr<T, U>, Expr<T, U>),
-    ToStr(Expr<T, U>),
-    ToInt(Expr<T, U>),
-    IndexOf(Expr<T, U>, Expr<T, U>, Expr<T, U>),
-    PrefixOf(Expr<T, U>, Expr<T, U>),
-    SuffixOf(Expr<T, U>, Expr<T, U>),
-    Contains(Expr<T, U>, Expr<T, U>),
+    Append(Term<T, U>, Term<T, U>),
+    Replace(Term<T, U>, Term<T, U>, Term<T, U>),
+    Substr(Term<T, U>, Term<T, U>, Term<T, U>),
+    Add(Term<T, U>, Term<T, U>),
+    Sub(Term<T, U>, Term<T, U>),
+    Len(Term<T, U>),
+    At(Term<T, U>, Term<T, U>),
+    ToStr(Term<T, U>),
+    ToInt(Term<T, U>),
+    IndexOf(Term<T, U>, Term<T, U>, Term<T, U>),
+    PrefixOf(Term<T, U>, Term<T, U>),
+    SuffixOf(Term<T, U>, Term<T, U>),
+    Contains(Term<T, U>, Term<T, U>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum Expr<T: Value, U: Lattice> {
     Const(T),
     Var(String),
-    Call(Box<Func<T, U>>),
-    If(Box<Expr<T, U>>, Box<Expr<T, U>>, Box<Expr<T, U>>),
-    Hole(U, Option<Box<Func<T, U>>>),
+    Call(Func<T, U>),
+    If(Term<T, U>, Term<T, U>, Term<T, U>),
+    Hole(U, Option<Func<T, U>>),
     ConcHole(u32),
     DepHole,
 }
@@ -114,20 +117,20 @@ impl<T: Value, U: Lattice> Func<T, U> {
     }
 
     fn size(&self) -> u32 {
-        (match self {
-            Self::Append(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::Replace(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size(),
-            Self::Substr(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size(),
-            Self::Add(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::Sub(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::Len(arg) => arg.size(),
-            Self::At(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::ToStr(arg) => arg.size(),
-            Self::ToInt(arg) => arg.size(),
-            Self::IndexOf(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size(),
-            Self::PrefixOf(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::SuffixOf(arg1, arg2) => arg1.size() + arg2.size(),
-            Self::Contains(arg1, arg2) => arg1.size() + arg2.size(),
-        }) + 1
+        match self {
+            Self::Append(arg1, arg2) => arg1.size() + arg2.size() + 2,
+            Self::Replace(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size() + 3,
+            Self::Substr(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size() + 3,
+            Self::Add(arg1, arg2) => arg1.size() + arg2.size() + 2,
+            Self::Sub(arg1, arg2) => arg1.size() + arg2.size() + 2,
+            Self::Len(arg) => arg.size() + 1,
+            Self::At(arg1, arg2) => arg1.size() + arg2.size() + 2,
+            Self::ToStr(arg) => arg.size() + 1,
+            Self::ToInt(arg) => arg.size() + 1,
+            Self::IndexOf(arg1, arg2, arg3) => arg1.size() + arg2.size() + arg3.size() + 3,
+            Self::PrefixOf(arg1, arg2) => arg1.size() + arg2.size() + 2,
+            Self::SuffixOf(arg1, arg2) => arg1.size() + arg2.size() + 2,
+            Self::Contains(arg1, arg2) => arg1.size() + arg2.size() + 2,
+        }
     }
 }
