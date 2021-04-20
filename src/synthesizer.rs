@@ -33,7 +33,7 @@ impl Context {
         expr_map.insert(0, exprs0);
         Context {
             conc_exprs: expr_map,
-            max_size: 10,
+            max_size: 15,
         }
     }
 }
