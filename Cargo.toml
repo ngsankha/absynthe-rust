@@ -9,3 +9,7 @@ edition = "2018"
 [dependencies]
 itertools = "0.9"
 z3 = "0.9.0"
+
+[dependencies.pyo3]
+version = "0.13.2"
+features = ["auto-initialize"]
